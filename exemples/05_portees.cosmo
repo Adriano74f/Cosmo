@@ -1,0 +1,14 @@
+# Portées : variables locales des missions et des blocs
+module altitude = 100;
+
+mission monter(depart, pas) {
+    module resultat = depart + pas;
+    atterris resultat;
+}
+
+altitude = monter(altitude, 50);
+transmets altitude;
+detecte altitude > 120 {
+    module message = "haute orbite";
+    transmets message;
+}

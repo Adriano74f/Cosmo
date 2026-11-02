@@ -1,0 +1,4 @@
+module carburant = 10;
+mission verifier() {
+    atterris carburant > 0;
+}

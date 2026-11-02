@@ -1,0 +1,13 @@
+# Compte à rebours avant décollage
+module t = 5;
+orbite t > 0 {
+    detecte t == 1 {
+        transmets t, "...allumage";
+    } sinon detecte t % 2 == 0 {
+        transmets t, "(pair)";
+    } sinon {
+        transmets t;
+    }
+    t = t - 1;
+}
+transmets "Décollage !";
