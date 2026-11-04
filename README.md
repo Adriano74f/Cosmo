@@ -64,7 +64,7 @@ uv run ruff check projet          # le style
 - [x] Étape 2 : types de token et classe `Token`
 - [x] Étape 3 : lexer
 - [x] Étape 4 : nœuds de l'arbre syntaxique
-- [ ] Étape 5 : parser des expressions (Pratt)
+- [x] Étape 5 : parser des expressions (Pratt)
 - [ ] Étape 6 : parser des instructions et récupération d'erreurs
 - [ ] Étape 7 : analyse sémantique
 - [ ] Étape 8 : génération de Python et exécution des exemples

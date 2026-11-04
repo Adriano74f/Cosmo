@@ -130,6 +130,7 @@ class FluxTokens:
         self._source = iter(tokens)
         self._tampon: deque[Token] = deque()
         self._fin: Token | None = None
+        self.precedent: Token | None = None  # le dernier token consommé
 
     def regarder(self, decalage: int = 0) -> Token:
         """Renvoie le token situé `decalage` positions plus loin, sans le consommer."""
@@ -141,6 +142,7 @@ class FluxTokens:
         """Consomme et renvoie le token courant."""
         token = self.regarder()
         self._tampon.popleft()
+        self.precedent = token
         return token
 
     def est(self, *types: TypeToken) -> bool:

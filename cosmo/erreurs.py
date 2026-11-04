@@ -26,3 +26,9 @@ class ErreurLexicale(ErreurCosmo):
     """Le texte contient quelque chose qui ne forme aucun token valide."""
 
     phase = "lexicale"
+
+
+class ErreurSyntaxique(ErreurCosmo):
+    """Les tokens sont valides, mais leur enchaînement ne respecte pas la grammaire."""
+
+    phase = "syntaxique"

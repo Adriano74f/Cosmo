@@ -194,6 +194,17 @@ def test_est_et_accepter() -> None:
     assert flux.est(T.ENTIER)
 
 
+def test_precedent_est_le_dernier_token_consomme() -> None:
+    flux = FluxTokens(analyser("a b"))
+    assert flux.precedent is None
+    flux.regarder(1)  # regarder ne consomme pas
+    assert flux.precedent is None
+    flux.avancer()
+    flux.accepter(T.IDENT)
+    assert flux.precedent is not None
+    assert flux.precedent.texte == "b"
+
+
 def test_le_flux_lit_le_lexer_a_la_demande() -> None:
     """Regarder le premier token ne déclenche pas l'erreur située plus loin."""
     flux = FluxTokens(analyser("x @"))
