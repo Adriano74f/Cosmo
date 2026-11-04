@@ -61,9 +61,9 @@ uv run ruff check projet          # le style
 ## Avancement
 
 - [x] Étape 1 : spécification du langage
-- [ ] Étape 2 : types de token et classe `Token`
-- [ ] Étape 3 : lexer
-- [ ] Étape 4 : nœuds de l'arbre syntaxique
+- [x] Étape 2 : types de token et classe `Token`
+- [x] Étape 3 : lexer
+- [x] Étape 4 : nœuds de l'arbre syntaxique
 - [ ] Étape 5 : parser des expressions (Pratt)
 - [ ] Étape 6 : parser des instructions et récupération d'erreurs
 - [ ] Étape 7 : analyse sémantique
