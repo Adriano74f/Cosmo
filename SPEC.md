@@ -211,7 +211,8 @@ Toute erreur indique sa **ligne** et sa **colonne** (en commençant à 1), au fo
 | sémantique | variable non déclarée, déclaration en double, masquage, mauvais nombre d'arguments, mission inconnue, `atterris` hors mission |
 | exécution | division par zéro, types incompatibles (remontées par Python) |
 
-Le parser tente de **continuer après une erreur** (étape 6) pour en signaler plusieurs en une seule compilation.
+Le parser tente de **continuer après une erreur** (étape 6) pour en signaler plusieurs en une seule compilation :
+il reprend à l'instruction suivante. Seules une erreur lexicale et une imbrication trop profonde arrêtent l'analyse.
 
 ## 6. Traduction vers Python (aperçu de l'étape 8)
 

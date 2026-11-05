@@ -1,4 +1,4 @@
-"""Étape 5 : le parser des expressions, par la méthode de Pratt.
+"""Étapes 5 et 6 : le parser des expressions (Pratt) et celui des instructions.
 
 Plutôt qu'une fonction par niveau de la grammaire, on associe à chaque token une règle,
 enregistrée par un décorateur paramétré, qui dit comment l'analyser :
@@ -8,23 +8,43 @@ enregistrée par un décorateur paramétré, qui dit comment l'analyser :
 
 `Parser.expression` enchaîne ces règles en les cherchant dans deux tables. Ajouter un
 opérateur revient à ajouter une règle : la boucle principale ne change pas.
+
+Les instructions suivent la même idée : `@instruction` associe une règle au token qui
+commence l'instruction. Une erreur dans une instruction est collectée, le parser se
+resynchronise au début de l'instruction suivante, et `analyser_programme` signale d'un
+seul coup toutes les erreurs trouvées.
 """
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from enum import IntEnum
 
-from cosmo.erreurs import ErreurSyntaxique
+from cosmo.erreurs import ErreurCosmo, ErreursCompilation, ErreurSyntaxique
 from cosmo.lexer import FluxTokens, analyser
 from cosmo.noeuds import (
+    Affectation,
     Appel,
+    AppelSeul,
+    Atterris,
     Binaire,
+    Bloc,
     Booleen,
     Chaine,
+    Declaration,
+    Detecte,
     Entier,
     Expression,
+    Instruction,
+    Mission,
+    Module,
     OperateurBinaire,
     OperateurUnaire,
+    Orbite,
+    Parametre,
+    Programme,
+    Sinon,
+    Survole,
+    Transmets,
     Unaire,
     Variable,
 )
@@ -55,9 +75,22 @@ COMPARAISONS = (
     T.SUPERIEUR_EGAL,
 )
 
+# Les mots-clés où le parser peut reprendre après une erreur. Pas IDENT : un identifiant
+# peut très bien se trouver au milieu de l'expression qui vient d'échouer.
+DEBUTS_INSTRUCTION = (
+    T.MODULE,
+    T.MISSION,
+    T.TRANSMETS,
+    T.DETECTE,
+    T.ORBITE,
+    T.SURVOLE,
+    T.ATTERRIS,
+)
+
 # Les règles sont de simples fonctions, rangées dans des tables (fonctions de 1ʳᵉ classe).
 type AnalyseurPrefixe = Callable[[Parser, Token], Expression]
 type AnalyseurInfixe = Callable[[Parser, Expression, Token, Priorite], Expression]
+type AnalyseurInstruction = Callable[[Parser], Instruction]
 
 
 @dataclass(frozen=True)
@@ -82,6 +115,7 @@ class RegleInfixe:
 
 REGLES_PREFIXES: dict[TypeToken, ReglePrefixe] = {}
 REGLES_INFIXES: dict[TypeToken, RegleInfixe] = {}
+REGLES_INSTRUCTIONS: dict[TypeToken, AnalyseurInstruction] = {}
 
 
 def prefixe(
@@ -108,11 +142,143 @@ def infixe(*types: TypeToken, priorite: Priorite) -> Callable[[AnalyseurInfixe],
     return decorateur
 
 
+def instruction(*types: TypeToken) -> Callable[[AnalyseurInstruction], AnalyseurInstruction]:
+    """Enregistre la fonction décorée comme règle des instructions commençant par ces tokens."""
+
+    def decorateur(fn: AnalyseurInstruction) -> AnalyseurInstruction:
+        for type_token in types:
+            REGLES_INSTRUCTIONS[type_token] = fn
+        return fn
+
+    return decorateur
+
+
 class Parser:
     """Construit l'arbre syntaxique à partir d'une suite de tokens."""
 
     def __init__(self, tokens: Iterable[Token]) -> None:
         self.flux = FluxTokens(tokens)
+        self.erreurs: list[ErreurCosmo] = []  # collectées au fil de l'analyse
+
+    def programme(self) -> Programme:
+        """Analyse tout le source. Ne lève pas : les erreurs sont dans `self.erreurs`.
+
+        Deux erreurs arrêtent l'analyse, faute de pouvoir reprendre :
+        - une erreur lexicale : le générateur du lexer s'est terminé en la levant, il ne
+          produira plus aucun token ;
+        - une imbrication trop profonde : la pile d'appels de Python est épuisée.
+        """
+        position = Position(1, 1)
+        declarations: list[Declaration] = []
+        try:
+            position = self.flux.regarder().position
+            self._lire_declarations(declarations)
+        except ErreurCosmo as erreur:
+            self._signaler(erreur)
+        return Programme(tuple(declarations), position=position)
+
+    def _lire_declarations(self, declarations: list[Declaration]) -> None:
+        """Ajoute à `declarations` celles du niveau principal, jusqu'à la fin du source."""
+        try:
+            while not self.flux.est(T.FIN):
+                declaration = self._avec_recuperation(self._declaration)
+                if declaration is not None:
+                    declarations.append(declaration)
+        except RecursionError as cause:
+            # On traduit l'erreur de Python en erreur de Cosmo, sans perdre son origine.
+            raise ErreurSyntaxique(
+                "imbrication trop profonde", self._apres_le_precedent()
+            ) from cause
+
+    def _declaration(self) -> Declaration:
+        if self.flux.est(T.MISSION):
+            return self._mission()
+        return self.instruction()
+
+    def _mission(self) -> Mission:
+        self.flux.avancer()  # mission
+        nom = self.attendre(T.IDENT)
+        self.attendre(T.PAR_OUVRANTE)
+        parametres: list[Parametre] = []
+        if not self.flux.est(T.PAR_FERMANTE):
+            parametres.append(self._parametre())
+            while self.flux.accepter(T.VIRGULE) is not None:
+                parametres.append(self._parametre())
+        self.attendre(T.PAR_FERMANTE)
+        return Mission(nom.texte, tuple(parametres), self.bloc(), position=nom.position)
+
+    def _parametre(self) -> Parametre:
+        nom = self.attendre(T.IDENT)
+        return Parametre(nom.texte, position=nom.position)
+
+    def bloc(self) -> Bloc:
+        """Analyse `{ … }`. Une instruction erronée n'empêche pas de lire les suivantes."""
+        ouvrante = self.attendre(T.ACC_OUVRANTE)
+        instructions: list[Instruction] = []
+        while not self.flux.est(T.ACC_FERMANTE, T.FIN):
+            lue = self._avec_recuperation(self.instruction)
+            if lue is not None:
+                instructions.append(lue)
+        self.attendre(T.ACC_FERMANTE)
+        return Bloc(tuple(instructions), position=ouvrante.position)
+
+    def instruction(self) -> Instruction:
+        """Analyse une instruction, avec la règle associée à son premier token."""
+        token = self.flux.regarder()
+        if token.type is T.MISSION:
+            raise ErreurSyntaxique(
+                "une mission ne se déclare qu'au niveau principal", token.position
+            )
+        regle = REGLES_INSTRUCTIONS.get(token.type)
+        if regle is None:
+            raise ErreurSyntaxique("instruction attendue", token.position)
+        return regle(self)
+
+    def _avec_recuperation[N](self, analyse: Callable[[], N]) -> N | None:
+        """Lance `analyse`. En cas d'erreur, la collecte, resynchronise et renvoie None."""
+        avant = self.flux.precedent
+        try:
+            return analyse()
+        except ErreurSyntaxique as erreur:
+            self._signaler(erreur)
+            self._synchroniser(aucun_progres=self.flux.precedent is avant)
+            return None
+
+    def _signaler(self, erreur: ErreurCosmo) -> None:
+        """Collecte une erreur, sauf si la même position vient déjà d'en signaler une.
+
+        Sans cela, un « } » manquant en fin de fichier serait signalé une fois par bloc
+        encore ouvert, toujours au même endroit.
+        """
+        if not self.erreurs or self.erreurs[-1].position != erreur.position:
+            self.erreurs.append(erreur)
+
+    def _synchroniser(self, aucun_progres: bool) -> None:
+        """Saute des tokens jusqu'à un endroit où une instruction peut commencer.
+
+        On s'arrête après un « ; » ou après le « } » d'un bloc sauté en entier, et avant un
+        mot-clé d'instruction ou le « } » du bloc englobant. Les accolades sont comptées pour
+        ne pas prendre le contenu d'un bloc abîmé pour une suite d'instructions.
+
+        Si l'instruction n'a consommé aucun token (`aucun_progres`), le premier est sauté
+        d'office : sinon, le parser buterait indéfiniment sur le même.
+        """
+        profondeur = 0
+        while not self.flux.est(T.FIN):
+            reprise_possible = self.flux.est(*DEBUTS_INSTRUCTION, T.ACC_FERMANTE)
+            if reprise_possible and profondeur == 0 and not aucun_progres:
+                return
+            aucun_progres = False
+            token = self.flux.avancer()
+            if token.type is T.ACC_OUVRANTE:
+                profondeur += 1
+            elif token.type is T.ACC_FERMANTE:
+                profondeur = max(0, profondeur - 1)
+                # Le « sinon » qui suit appartient encore à l'instruction abîmée.
+                if profondeur == 0 and not self.flux.est(T.SINON):
+                    return
+            elif token.type is T.POINT_VIRGULE and profondeur == 0:
+                return
 
     def expression(self, minimum: int = Priorite.OU) -> Expression:
         """Analyse une expression dont les opérateurs ont au moins la priorité `minimum`.
@@ -152,6 +318,95 @@ class Parser:
         if precedent is None:
             return self.flux.regarder().position
         return Position(precedent.position.ligne, precedent.position.colonne + len(precedent.texte))
+
+
+# --- Règles d'instruction : chacune consomme tout, du premier token au dernier -------
+
+
+@instruction(T.MODULE)
+def _module(parser: Parser) -> Instruction:
+    parser.flux.avancer()
+    nom = parser.attendre(T.IDENT)
+    parser.attendre(T.EGAL)
+    valeur = parser.expression()
+    parser.attendre(T.POINT_VIRGULE)
+    return Module(nom.texte, valeur, position=nom.position)
+
+
+@instruction(T.IDENT)
+def _affectation_ou_appel(parser: Parser) -> Instruction:
+    # Le regard en avant : les deux instructions commencent par un identifiant.
+    nom = parser.flux.regarder()
+    suivant = parser.flux.regarder(1)
+    if suivant.type is T.EGAL:
+        parser.flux.avancer()
+        parser.flux.avancer()
+        valeur = parser.expression()
+        parser.attendre(T.POINT_VIRGULE)
+        return Affectation(nom.texte, valeur, position=nom.position)
+    if suivant.type is T.PAR_OUVRANTE:
+        # À cette priorité, aucun opérateur ne peut prolonger l'appel : `f() + 1;` est refusé.
+        appel = parser.expression(Priorite.PRIMAIRE)
+        assert isinstance(appel, Appel)
+        parser.attendre(T.POINT_VIRGULE)
+        return AppelSeul(appel, position=nom.position)
+    parser.flux.avancer()
+    raise ErreurSyntaxique(
+        f"« = » ou « ( » attendu après « {nom.texte} »", parser._apres_le_precedent()
+    )
+
+
+@instruction(T.TRANSMETS)
+def _transmets(parser: Parser) -> Instruction:
+    mot = parser.flux.avancer()
+    valeurs: list[Expression] = []
+    if not parser.flux.est(T.POINT_VIRGULE):
+        valeurs.append(parser.expression())
+        while parser.flux.accepter(T.VIRGULE) is not None:
+            valeurs.append(parser.expression())
+    parser.attendre(T.POINT_VIRGULE)
+    return Transmets(tuple(valeurs), position=mot.position)
+
+
+@instruction(T.DETECTE)
+def _instruction_detecte(parser: Parser) -> Instruction:
+    return _detecte(parser)
+
+
+def _detecte(parser: Parser) -> Detecte:
+    mot = parser.flux.avancer()
+    condition = parser.expression()
+    alors = parser.bloc()
+    sinon: Sinon = None
+    if parser.flux.accepter(T.SINON) is not None:
+        sinon = _detecte(parser) if parser.flux.est(T.DETECTE) else parser.bloc()
+    return Detecte(condition, alors, sinon, position=mot.position)
+
+
+@instruction(T.ORBITE)
+def _orbite(parser: Parser) -> Instruction:
+    mot = parser.flux.avancer()
+    condition = parser.expression()
+    return Orbite(condition, parser.bloc(), position=mot.position)
+
+
+@instruction(T.SURVOLE)
+def _survole(parser: Parser) -> Instruction:
+    parser.flux.avancer()
+    variable = parser.attendre(T.IDENT)
+    parser.attendre(T.DANS)
+    debut = parser.expression()
+    parser.attendre(T.POINT_POINT)
+    fin = parser.expression()
+    return Survole(variable.texte, debut, fin, parser.bloc(), position=variable.position)
+
+
+@instruction(T.ATTERRIS)
+def _atterris(parser: Parser) -> Instruction:
+    mot = parser.flux.avancer()
+    valeur = None if parser.flux.est(T.POINT_VIRGULE) else parser.expression()
+    parser.attendre(T.POINT_VIRGULE)
+    return Atterris(valeur, position=mot.position)
 
 
 # --- Règles préfixes : ce qui peut commencer une expression ------------------
@@ -245,3 +500,15 @@ def analyser_expression(source: str) -> Expression:
             f"« {suivant.texte} » inattendu après l'expression", suivant.position
         )
     return expression
+
+
+def analyser_programme(source: str) -> Programme:
+    """Analyse un programme complet.
+
+    Lève ErreursCompilation avec toutes les erreurs trouvées, causée par la première.
+    """
+    parser = Parser(analyser(source))
+    programme = parser.programme()
+    if parser.erreurs:
+        raise ErreursCompilation(parser.erreurs) from parser.erreurs[0]
+    return programme

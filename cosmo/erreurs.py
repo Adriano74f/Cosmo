@@ -2,8 +2,11 @@
 
 Chaque erreur connaît sa position dans le source : c'est ce qui permet d'afficher
 `[1:11] erreur lexicale : chaîne non terminée`.
-Les phases suivantes (syntaxique, sémantique) ajouteront leur sous-classe.
+Une phase qui sait continuer après une erreur les collecte, puis les lève toutes d'un
+coup dans une `ErreursCompilation`.
 """
+
+from collections.abc import Iterable
 
 from cosmo.tokens import Position
 
@@ -32,3 +35,15 @@ class ErreurSyntaxique(ErreurCosmo):
     """Les tokens sont valides, mais leur enchaînement ne respecte pas la grammaire."""
 
     phase = "syntaxique"
+
+
+class ErreursCompilation(Exception):
+    """Toutes les erreurs collectées par une phase de compilation.
+
+    Elle est levée avec `raise ... from` : la première erreur en est la cause.
+    Sa représentation texte contient une erreur par ligne.
+    """
+
+    def __init__(self, erreurs: Iterable[ErreurCosmo]) -> None:
+        self.erreurs = tuple(erreurs)
+        super().__init__("\n".join(str(erreur) for erreur in self.erreurs))
