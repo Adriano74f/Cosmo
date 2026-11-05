@@ -37,6 +37,12 @@ class ErreurSyntaxique(ErreurCosmo):
     phase = "syntaxique"
 
 
+class ErreurSemantique(ErreurCosmo):
+    """La grammaire est respectée, mais le programme n'a pas de sens (nom inconnu, doublon...)."""
+
+    phase = "sémantique"
+
+
 class ErreursCompilation(Exception):
     """Toutes les erreurs collectées par une phase de compilation.
 
