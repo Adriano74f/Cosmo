@@ -12,7 +12,7 @@ d'après le type du nœud. Les portées sont des gestionnaires de contexte : un 
 que chaque portée ouverte est refermée.
 """
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from functools import singledispatchmethod
 
@@ -55,6 +55,8 @@ class AnalyseurSemantique:
         self._missions: dict[str, Mission] = {}
         # Les portées visibles, de la plus englobante à la plus locale : nom → déclaration.
         self._portees: list[dict[str, Position]] = []
+        # Le niveau principal : il survit à `analyser`, pour la session suivante du REPL.
+        self._globales: dict[str, Position] = {}
         self._dans_une_mission = False
 
     def analyser(self, programme: Programme) -> None:
@@ -63,7 +65,7 @@ class AnalyseurSemantique:
         Lève ErreurSemantique si l'arbre est trop profond pour être parcouru.
         """
         self._relever_missions(programme)
-        with self.portee():
+        with self.portee(self._globales):
             for declaration in programme.declarations:
                 try:
                     self.visiter(declaration)
@@ -74,9 +76,53 @@ class AnalyseurSemantique:
                         "imbrication trop profonde", declaration.position
                     ) from cause
 
+    def verifier(self, programme: Programme) -> None:
+        """Analyse le programme et lève toutes les erreurs trouvées, dans l'ordre du source.
+
+        Lève ErreursCompilation, causée par la première erreur.
+        """
+        self.erreurs = []
+        try:
+            self.analyser(programme)
+        except ErreurSemantique as fatale:
+            self.erreurs.append(fatale)
+        if self.erreurs:
+            erreurs = sorted(self.erreurs, key=lambda e: (e.position.ligne, e.position.colonne))
+            raise ErreursCompilation(erreurs) from erreurs[0]
+
+    def verifier_entree(self, programme: Programme) -> None:
+        """Comme `verifier`, pour une entrée du REPL : les entrées précédentes restent visibles.
+
+        Une entrée refusée ne laisse aucune trace : ses déclarations sont oubliées.
+        """
+        missions, globales = dict(self._missions), dict(self._globales)
+        try:
+            self.verifier(programme)
+        except ErreursCompilation:
+            self._missions, self._globales = missions, globales
+            raise
+
+    def retenir(self, existe: Callable[[str], bool]) -> None:
+        """Oublie les noms du niveau principal pour lesquels `existe` est faux.
+
+        Une entrée peut être acceptée puis échouer à l'exécution : ce qu'elle déclarait
+        après l'erreur n'a jamais reçu de valeur.
+        """
+        self._missions = {nom: m for nom, m in self._missions.items() if existe(nom)}
+        self._globales = {nom: p for nom, p in self._globales.items() if existe(nom)}
+
+    def noms_du_niveau_principal(self) -> set[str]:
+        """Les missions et les variables que la suite du programme peut encore nommer."""
+        return {*self._missions, *self._globales}
+
     def _relever_missions(self, programme: Programme) -> None:
         for declaration in programme.declarations:
             if not isinstance(declaration, Mission):
+                continue
+            if declaration.nom in self._globales:  # possible seulement dans le REPL
+                self._erreur(
+                    f"« {declaration.nom} » est déjà le nom d'une variable", declaration.position
+                )
                 continue
             premiere = self._missions.setdefault(declaration.nom, declaration)
             if premiere is not declaration:
@@ -89,9 +135,12 @@ class AnalyseurSemantique:
     # --- Les portées ---------------------------------------------------------
 
     @contextmanager
-    def portee(self) -> Iterator[None]:
-        """Ouvre une portée le temps du `with` : ses variables disparaissent à la sortie."""
-        self._portees.append({})
+    def portee(self, variables: dict[str, Position] | None = None) -> Iterator[None]:
+        """Ouvre une portée le temps du `with` : ses variables disparaissent à la sortie.
+
+        `variables` permet de rouvrir une portée existante plutôt qu'une portée vide.
+        """
+        self._portees.append({} if variables is None else variables)
         try:
             yield
         finally:
@@ -261,11 +310,4 @@ def analyser_semantique(programme: Programme) -> None:
     Lève ErreursCompilation avec toutes les erreurs trouvées, dans l'ordre du source,
     causée par la première.
     """
-    analyseur = AnalyseurSemantique()
-    try:
-        analyseur.analyser(programme)
-    except ErreurSemantique as fatale:
-        analyseur.erreurs.append(fatale)
-    if analyseur.erreurs:
-        erreurs = sorted(analyseur.erreurs, key=lambda e: (e.position.ligne, e.position.colonne))
-        raise ErreursCompilation(erreurs) from erreurs[0]
+    AnalyseurSemantique().verifier(programme)

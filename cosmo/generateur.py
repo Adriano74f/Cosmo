@@ -84,7 +84,7 @@ OPERATEURS_UNAIRES: dict[OperateurUnaire, tuple[str, Priorite]] = {
 }
 
 
-def _nom(nom: str) -> str:
+def nom_python(nom: str) -> str:
     """Le nom Python d'un nom Cosmo : `class` devient `c_class`, qui n'a rien de réservé."""
     return f"c_{nom}"
 
@@ -129,14 +129,14 @@ class GenerateurPython:
                 self._ecrire("pass")
 
     def _mission(self, mission: Mission) -> None:
-        parametres = ", ".join(_nom(parametre.nom) for parametre in mission.parametres)
-        self._bloc(f"def {_nom(mission.nom)}({parametres}):", mission.corps)
+        parametres = ", ".join(nom_python(parametre.nom) for parametre in mission.parametres)
+        self._bloc(f"def {nom_python(mission.nom)}({parametres}):", mission.corps)
 
     def instruction(self, noeud: Instruction) -> None:
         """Écrit les lignes Python d'une instruction."""
         match noeud:
             case Module(nom, valeur) | Affectation(nom, valeur):
-                self._ecrire(f"{_nom(nom)} = {self.expression(valeur)}")
+                self._ecrire(f"{nom_python(nom)} = {self.expression(valeur)}")
             case Transmets(valeurs):
                 self._ecrire(f"_transmets({self._liste(valeurs)})")
             case Detecte():
@@ -145,7 +145,7 @@ class GenerateurPython:
                 self._bloc(f"while {self.expression(condition)}:", corps)
             case Survole(variable, debut, fin, corps):
                 intervalle = f"range({self.expression(debut)}, {self.expression(fin)})"
-                self._bloc(f"for {_nom(variable)} in {intervalle}:", corps)
+                self._bloc(f"for {nom_python(variable)} in {intervalle}:", corps)
             case Atterris(valeur):
                 self._ecrire("return" if valeur is None else f"return {self.expression(valeur)}")
             case AppelSeul(appel):
@@ -184,7 +184,7 @@ class GenerateurPython:
             case Booleen(valeur):
                 return repr(valeur), Priorite.PRIMAIRE
             case Variable(nom):
-                return _nom(nom), Priorite.PRIMAIRE
+                return nom_python(nom), Priorite.PRIMAIRE
             case Unaire(operateur, operande):
                 texte, priorite = OPERATEURS_UNAIRES[operateur]
                 return texte + self.expression(operande, priorite), priorite
@@ -198,7 +198,7 @@ class GenerateurPython:
                 d = self.expression(droite, priorite + 1)
                 return f"{g} {texte} {d}", priorite
             case Appel(nom, arguments):
-                return f"{_nom(nom)}({self._liste(arguments)})", Priorite.PRIMAIRE
+                return f"{nom_python(nom)}({self._liste(arguments)})", Priorite.PRIMAIRE
             case _:
                 assert_never(noeud)
 

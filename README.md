@@ -44,10 +44,15 @@ projet/
 
 ## Utilisation
 
-Exécuter un programme (disponible à partir de l'étape 9) :
+Depuis le dossier du projet (détails dans [SPEC.md](SPEC.md), section 7) :
 
 ```bash
-python -m cosmo run exemples/02_fibonacci.cosmo
+python -m cosmo run exemples/02_fibonacci.cosmo        # exécuter un programme
+python -m cosmo transpile exemples/02_fibonacci.cosmo  # voir le Python généré
+python -m cosmo verifie exemples/02_fibonacci.cosmo    # chercher les erreurs, sans exécuter
+python -m cosmo tokens exemples/02_fibonacci.cosmo     # voir les tokens
+python -m cosmo arbre exemples/02_fibonacci.cosmo      # voir l'arbre
+python -m cosmo                                        # session interactive (REPL)
 ```
 
 Lancer les vérifications :
@@ -68,5 +73,5 @@ uv run ruff check projet          # le style
 - [x] Étape 6 : parser des instructions et récupération d'erreurs
 - [x] Étape 7 : analyse sémantique
 - [x] Étape 8 : génération de Python et exécution des exemples
-- [ ] Étape 9 : ligne de commande et REPL
+- [x] Étape 9 : ligne de commande et REPL
 - [ ] Étape 10 : `mypy --strict`, backend en `Protocol`, formateur

@@ -3,6 +3,7 @@
 import dataclasses
 
 import pytest
+
 from cosmo.tokens import MOTS_CLES, SYMBOLES, Position, Token, TypeToken
 
 

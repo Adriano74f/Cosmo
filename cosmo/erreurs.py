@@ -49,6 +49,23 @@ class ErreurGeneration(ErreurCosmo):
     phase = "de génération"
 
 
+def decrire_erreur_execution(erreur: Exception) -> str:
+    """Le message d'une exception de Python levée par un programme Cosmo en cours d'exécution.
+
+    Il n'a pas de position : le code qui s'exécute est du Python, sans lien avec le source.
+    """
+    match erreur:
+        case ZeroDivisionError():
+            description = "division par zéro"
+        case TypeError():
+            description = f"types incompatibles ({erreur})"
+        case RecursionError():
+            description = "trop d'appels de missions imbriqués"
+        case _:
+            description = f"{type(erreur).__name__} : {erreur}"
+    return f"erreur d'exécution : {description}"
+
+
 class ErreursCompilation(Exception):
     """Toutes les erreurs collectées par une phase de compilation.
 

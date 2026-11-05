@@ -210,7 +210,7 @@ Toute erreur indique sa **ligne** et sa **colonne** (en commençant à 1), au fo
 | syntaxique | `;` attendu, `}` manquant, expression attendue, `a < b < c` |
 | sémantique | variable non déclarée, déclaration en double, masquage, mauvais nombre d'arguments, mission inconnue, `atterris` hors mission |
 | de génération | programme valide mais trop imbriqué pour Python |
-| exécution | division par zéro, types incompatibles (remontées par Python) |
+| exécution | division par zéro, types incompatibles (remontées par Python, sans position) |
 
 Le parser tente de **continuer après une erreur** (étape 6) pour en signaler plusieurs en une seule compilation :
 il reprend à l'instruction suivante. Seules une erreur lexicale et une imbrication trop profonde arrêtent l'analyse.
@@ -226,7 +226,55 @@ il reprend à l'instruction suivante. Seules une erreur lexicale et une imbricat
 - Les limites de Python s'appliquent au code généré : au-delà de 20 boucles imbriquées, ou de 100 niveaux
   d'indentation, la compilation échoue avec une `erreur de génération`.
 
-## 7. Programmes d'exemple
+## 7. Ligne de commande et REPL (étape 9)
+
+### 7.1 Commandes
+
+```
+python -m cosmo run fichier.cosmo                 exécute le programme
+python -m cosmo transpile fichier.cosmo [-o f.py] affiche ou écrit le Python généré
+python -m cosmo verifie fichier.cosmo             cherche les erreurs, sans exécuter
+python -m cosmo tokens fichier.cosmo              affiche les tokens (lexer)
+python -m cosmo arbre fichier.cosmo               affiche l'arbre (parser)
+python -m cosmo [repl]                            lance une session interactive
+```
+
+Les erreurs sont écrites sur la sortie d'erreur. Le code de sortie vaut :
+
+| Code | Signification |
+|---|---|
+| 0 | tout s'est bien passé |
+| 1 | erreur de compilation, ou erreur à l'exécution du programme |
+| 2 | commande mal formée, ou fichier illisible (absent, pas en UTF-8...) |
+| 130 | exécution interrompue par Ctrl-C |
+
+Une erreur d'exécution s'affiche sans trace Python : `erreur d'exécution : division par zéro`.
+
+### 7.2 REPL
+
+Le REPL exécute les entrées une à une. Variables et missions du niveau principal restent connues
+d'une entrée à l'autre, et les règles de la section 4 s'appliquent comme si toutes les entrées
+formaient un seul programme, avec trois différences :
+
+- Une **expression seule, sans `;`**, est acceptée et sa valeur est affichée : `1 + 2`, `f(3)`.
+- Une mission ne peut appeler que les missions déjà connues, ou déclarées dans la même entrée.
+- Les positions des erreurs sont relatives à l'entrée en cours, pas à toute la session.
+
+Une entrée continue sur la ligne suivante (invite `...`) tant qu'une accolade ou une parenthèse
+reste ouverte, ou qu'elle ne se termine ni par `;` ni par `}` sans former une expression complète.
+Une ligne vide valide l'entrée, sauf dans un bloc encore ouvert ; Ctrl-C abandonne l'entrée en cours.
+Comme une entrée finie par `}` s'exécute aussitôt, `sinon` doit suivre sur la même ligne que le `}`.
+
+Une entrée refusée à la compilation ne laisse aucune trace. Si elle échoue à l'exécution, ce qui a
+été exécuté avant l'erreur est conservé, et les variables qui n'ont pas reçu de valeur sont oubliées.
+
+| Commande | Effet |
+|---|---|
+| `:aide` | affiche l'aide |
+| `:effacer` | oublie toutes les variables et les missions |
+| `:quitter` | quitte le REPL (comme la fin de l'entrée standard : Ctrl-D, ou Ctrl-Z sous Windows) |
+
+## 8. Programmes d'exemple
 
 Chaque programme `exemples/NN_nom.cosmo` a sa sortie attendue dans `NN_nom.attendu`.
 Chaque programme `erreurs/NN_nom.cosmo` a le message d'erreur attendu dans `NN_nom.attendu`.
@@ -240,7 +288,7 @@ Chaque programme `erreurs/NN_nom.cosmo` a le message d'erreur attendu dans `NN_n
 | `05_portees` | variables locales, portée d'un bloc |
 | `erreurs/01` à `05` | une erreur de chaque phase de compilation |
 
-## 8. Hors périmètre (évolutions possibles)
+## 9. Hors périmètre (évolutions possibles)
 
 Nombres à virgule, listes, types déclarés (extension 12), `casse` / `continue` dans les boucles,
 missions imbriquées.
