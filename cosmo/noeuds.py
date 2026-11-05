@@ -13,7 +13,7 @@ suivantes les parcourent avec `match`.
 from dataclasses import dataclass, field
 from enum import Enum
 
-from cosmo.tokens import Position
+from cosmo.tokens import Commentaire, Position
 
 # Un alias `type` est évalué à la demande : il peut citer des classes définies plus bas,
 # et ces classes peuvent à leur tour l'utiliser dans leurs champs (l'arbre est récursif).
@@ -127,9 +127,14 @@ class Appel(Noeud):
 
 @dataclass(frozen=True)
 class Bloc(Noeud):
-    """Des instructions entre accolades : `{ … }`. Ouvre une nouvelle portée."""
+    """Des instructions entre accolades : `{ … }`. Ouvre une nouvelle portée.
+
+    `fin` est la position de l'accolade fermante : le formateur doit savoir si un commentaire
+    est à l'intérieur du bloc ou après lui.
+    """
 
     instructions: tuple[Instruction, ...]
+    fin: Position | None = field(default=None, kw_only=True, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -220,7 +225,18 @@ class Mission(Noeud):
 
 
 @dataclass(frozen=True)
+class MiseEnPage:
+    """Ce que la grammaire ignore, mais qu'un formateur doit conserver."""
+
+    commentaires: tuple[Commentaire, ...] = ()
+    lignes_vides: frozenset[int] = frozenset()
+
+
+@dataclass(frozen=True)
 class Programme(Noeud):
     """La racine de l'arbre : tout le contenu d'un fichier source."""
 
     declarations: tuple[Declaration, ...]
+    mise_en_page: MiseEnPage = field(
+        default=MiseEnPage(), kw_only=True, compare=False, repr=False
+    )

@@ -21,7 +21,7 @@ def lignes_arbre(noeud: Noeud, etiquette: str = "", niveau: int = 0) -> Iterator
     attributs: list[str] = []
     enfants: list[tuple[str, Noeud]] = []
     for champ in fields(noeud):
-        if champ.name == "position":
+        if not champ.repr:  # la position, et la mise en page réservée au formateur
             continue
         valeur = getattr(noeud, champ.name)
         match valeur:

@@ -3,4 +3,4 @@ module equipage = "Cosmo";
 transmets "Bonjour depuis", equipage;
 transmets 7 + 3 * 2, (7 + 3) * 2;
 transmets 17 / 5, 17 % 5, -7 / 2;
-transmets 3 < 5, non (3 < 5);
+transmets 3 < 5, non 3 < 5;

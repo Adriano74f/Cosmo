@@ -9,23 +9,16 @@ L'arbre, déjà vérifié par l'analyse sémantique, est traduit en texte Python
 - les missions en tête du fichier : en Cosmo, on peut les appeler avant leur déclaration.
 """
 
-from collections.abc import Iterator
-from contextlib import contextmanager
+from types import CodeType
 from typing import assert_never
 
 from cosmo.erreurs import ErreurGeneration, ErreursCompilation
 from cosmo.noeuds import (
     Affectation,
-    Appel,
     AppelSeul,
     Atterris,
-    Binaire,
     Bloc,
-    Booleen,
-    Chaine,
     Detecte,
-    Entier,
-    Expression,
     Instruction,
     Mission,
     Module,
@@ -35,12 +28,8 @@ from cosmo.noeuds import (
     Programme,
     Survole,
     Transmets,
-    Unaire,
-    Variable,
 )
-from cosmo.parser import Priorite
-
-INDENTATION = "    "
+from cosmo.rendu import GenerateurTexte
 
 # Les noms du prélude ne peuvent rien heurter : tout nom Cosmo commence par `c_`.
 PRELUDE = """\
@@ -61,26 +50,16 @@ def _transmets(*valeurs):
 
 """
 
-OPERATEURS_BINAIRES: dict[OperateurBinaire, tuple[str, Priorite]] = {
-    OperateurBinaire.OU: ("or", Priorite.OU),
-    OperateurBinaire.ET: ("and", Priorite.ET),
-    OperateurBinaire.EGAL: ("==", Priorite.COMPARAISON),
-    OperateurBinaire.DIFFERENT: ("!=", Priorite.COMPARAISON),
-    OperateurBinaire.INFERIEUR: ("<", Priorite.COMPARAISON),
-    OperateurBinaire.INFERIEUR_EGAL: ("<=", Priorite.COMPARAISON),
-    OperateurBinaire.SUPERIEUR: (">", Priorite.COMPARAISON),
-    OperateurBinaire.SUPERIEUR_EGAL: (">=", Priorite.COMPARAISON),
-    OperateurBinaire.PLUS: ("+", Priorite.SOMME),
-    OperateurBinaire.MOINS: ("-", Priorite.SOMME),
-    OperateurBinaire.FOIS: ("*", Priorite.PRODUIT),
-    OperateurBinaire.DIVISE: ("//", Priorite.PRODUIT),
-    OperateurBinaire.MODULO: ("%", Priorite.PRODUIT),
+OPERATEURS_BINAIRES: dict[OperateurBinaire, str] = {
+    OperateurBinaire.OU: "or",
+    OperateurBinaire.ET: "and",
+    OperateurBinaire.DIVISE: "//",
 }
-"""Opérateur Cosmo → son texte Python et sa priorité, qui suit le même ordre en Python."""
+"""Les opérateurs qui s'écrivent autrement en Python qu'en Cosmo."""
 
-OPERATEURS_UNAIRES: dict[OperateurUnaire, tuple[str, Priorite]] = {
-    OperateurUnaire.NON: ("not ", Priorite.NON),
-    OperateurUnaire.MOINS: ("-", Priorite.UNAIRE),
+OPERATEURS_UNAIRES: dict[OperateurUnaire, str] = {
+    OperateurUnaire.NON: "not ",
+    OperateurUnaire.MOINS: "-",
 }
 
 
@@ -89,12 +68,23 @@ def nom_python(nom: str) -> str:
     return f"c_{nom}"
 
 
-class GenerateurPython:
+class GenerateurPython(GenerateurTexte):
     """Traduit un arbre en texte Python."""
 
-    def __init__(self) -> None:
-        self._lignes: list[str] = []
-        self._niveau = 0
+    def _texte_nom(self, nom: str) -> str:
+        return nom_python(nom)
+
+    def _texte_chaine(self, valeur: str) -> str:
+        return repr(valeur)
+
+    def _texte_booleen(self, valeur: bool) -> str:
+        return repr(valeur)
+
+    def _texte_binaire(self, operateur: OperateurBinaire) -> str:
+        return OPERATEURS_BINAIRES.get(operateur, operateur.value)
+
+    def _texte_unaire(self, operateur: OperateurUnaire) -> str:
+        return OPERATEURS_UNAIRES[operateur]
 
     def generer(self, programme: Programme) -> str:
         """Renvoie le texte Python complet : prélude, missions, puis niveau principal."""
@@ -105,19 +95,7 @@ class GenerateurPython:
         for declaration in programme.declarations:
             if not isinstance(declaration, Mission):
                 self.instruction(declaration)
-        return PRELUDE + "".join(f"{ligne}\n" for ligne in self._lignes)
-
-    @contextmanager
-    def _indentation(self) -> Iterator[None]:
-        """Les lignes écrites pendant le `with` ont un niveau d'indentation de plus."""
-        self._niveau += 1
-        try:
-            yield
-        finally:
-            self._niveau -= 1
-
-    def _ecrire(self, ligne: str) -> None:
-        self._lignes.append(INDENTATION * self._niveau + ligne)
+        return PRELUDE + self._texte_complet()
 
     def _bloc(self, entete: str, bloc: Bloc) -> None:
         """Écrit `entete` puis les instructions du bloc, indentées."""
@@ -165,46 +143,6 @@ class GenerateurPython:
             case _ as jamais:
                 assert_never(jamais)
 
-    def expression(self, noeud: Expression, minimum: int = Priorite.OU) -> str:
-        """Le texte Python d'une expression, entre parenthèses si sa place l'exige.
-
-        `minimum` est la priorité que le contexte exige : `(1 + 2) * 3` garde ainsi ses
-        parenthèses, et `1 + (2 * 3)` les perd.
-        """
-        texte, priorite = self._rendre(noeud)
-        return f"({texte})" if priorite < minimum else texte
-
-    def _rendre(self, noeud: Expression) -> tuple[str, Priorite]:
-        """Le texte d'une expression, sans parenthèses autour, et sa priorité."""
-        match noeud:
-            case Entier(valeur):
-                return str(valeur), Priorite.PRIMAIRE
-            case Chaine(valeur):
-                return repr(valeur), Priorite.PRIMAIRE
-            case Booleen(valeur):
-                return repr(valeur), Priorite.PRIMAIRE
-            case Variable(nom):
-                return nom_python(nom), Priorite.PRIMAIRE
-            case Unaire(operateur, operande):
-                texte, priorite = OPERATEURS_UNAIRES[operateur]
-                return texte + self.expression(operande, priorite), priorite
-            case Binaire(operateur, gauche, droite):
-                texte, priorite = OPERATEURS_BINAIRES[operateur]
-                # Associativité à gauche : à droite, il faut une priorité strictement plus
-                # grande. Une comparaison en exige autant à gauche : Python lirait
-                # `a < b < c` comme un enchaînement, qui n'a pas le sens de `(a < b) < c`.
-                min_gauche = priorite + 1 if priorite is Priorite.COMPARAISON else priorite
-                g = self.expression(gauche, min_gauche)
-                d = self.expression(droite, priorite + 1)
-                return f"{g} {texte} {d}", priorite
-            case Appel(nom, arguments):
-                return f"{nom_python(nom)}({self._liste(arguments)})", Priorite.PRIMAIRE
-            case _:
-                assert_never(noeud)
-
-    def _liste(self, expressions: tuple[Expression, ...]) -> str:
-        return ", ".join(self.expression(expression) for expression in expressions)
-
 
 def generer(programme: Programme) -> str:
     """Traduit un programme vérifié en texte Python.
@@ -222,3 +160,23 @@ def trop_imbrique(programme: Programme) -> ErreurGeneration:
     return ErreurGeneration(
         "programme trop imbriqué pour être traduit en Python", programme.position
     )
+
+
+def traduire(programme: Programme) -> tuple[str, CodeType]:
+    """Génère le Python d'un programme vérifié : renvoie le texte et le code compilé.
+
+    Un programme valide en Cosmo peut encore dépasser les limites de Python : plus de 20
+    boucles imbriquées, par exemple. Ce refus devient une erreur de compilation Cosmo.
+    """
+    texte = generer(programme)
+    try:
+        return texte, compile(texte, "<cosmo>", "exec")
+    except (SyntaxError, RecursionError, MemoryError) as cause:
+        raise ErreursCompilation([trop_imbrique(programme)]) from cause
+
+
+class BackendPython:
+    """Le backend principal : du Python que l'interpréteur accepte à coup sûr."""
+
+    def generer(self, programme: Programme) -> str:
+        return traduire(programme)[0]

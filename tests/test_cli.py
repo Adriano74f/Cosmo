@@ -94,7 +94,9 @@ def test_run_comprend_les_fins_de_ligne_windows(tmp_path: Path, capsys: Capture)
 # --- Fichiers inaccessibles ----------------------------------------------------
 
 
-@pytest.mark.parametrize("commande", ["run", "transpile", "verifie", "tokens", "arbre"])
+@pytest.mark.parametrize(
+    "commande", ["run", "transpile", "formate", "verifie", "tokens", "arbre"]
+)
 def test_fichier_absent_signale_proprement(
     commande: str, tmp_path: Path, capsys: Capture
 ) -> None:
@@ -267,7 +269,9 @@ def test_ligne_de_commande_mal_formee_sort_avec_le_code_d_usage(
     assert "usage" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("commande", ["run", "transpile", "verifie", "tokens", "arbre", "repl"])
+@pytest.mark.parametrize(
+    "commande", ["run", "transpile", "formate", "verifie", "tokens", "arbre", "repl"]
+)
 def test_l_aide_cite_chaque_commande(commande: str, capsys: Capture) -> None:
     with pytest.raises(SystemExit):
         main(["--help"])

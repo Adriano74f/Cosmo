@@ -107,6 +107,14 @@ class Position:
 
 
 @dataclass(frozen=True)
+class Commentaire:
+    """Un commentaire du source, `#` compris. Il n'est pas un token : le parser ne le voit pas."""
+
+    texte: str
+    position: Position
+
+
+@dataclass(frozen=True)
 class Token:
     """Un token : son type, le texte exact lu dans la source, et sa position.
 

@@ -9,7 +9,7 @@ from collections import deque
 from collections.abc import Iterable, Iterator
 
 from cosmo.erreurs import ErreurLexicale
-from cosmo.tokens import MOTS_CLES, SYMBOLES, Position, Token, TypeToken
+from cosmo.tokens import MOTS_CLES, SYMBOLES, Commentaire, Position, Token, TypeToken
 
 CHIFFRES = "0123456789"
 LETTRES = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
@@ -20,8 +20,11 @@ ECHAPPEMENTS = {'"': '"', "\\": "\\", "n": "\n"}
 SYMBOLES_PAR_LONGUEUR = sorted(SYMBOLES, key=len, reverse=True)
 
 
-def analyser(source: str) -> Iterator[Token]:
+def analyser(source: str, commentaires: list[Commentaire] | None = None) -> Iterator[Token]:
     """Découpe `source` en tokens, produits un par un, et termine par FIN.
+
+    Les commentaires ne sont pas des tokens : ils sont ajoutés à la liste `commentaires`,
+    si elle est fournie, pour le formateur (étape 10).
 
     Lève ErreurLexicale, avec sa position, au premier caractère invalide.
     Comme c'est un générateur, les tokens qui précèdent l'erreur ont déjà été produits.
@@ -46,8 +49,11 @@ def analyser(source: str) -> Iterator[Token]:
 
         # Commentaire : on saute jusqu'à la fin de la ligne (sans consommer le \n).
         elif c == "#":
+            debut = i
             while i < len(source) and source[i] != "\n":
                 i += 1
+            if commentaires is not None:
+                commentaires.append(Commentaire(source[debut:i].rstrip(), position))
 
         # Entier : une suite de chiffres.
         elif c in CHIFFRES:

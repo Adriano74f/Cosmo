@@ -1,16 +1,16 @@
 """La façade du compilateur : un point d'entrée unique vers toute la chaîne.
 
-source → lexer → parser → analyse sémantique → génération → compilation Python
+source → lexer → parser → analyse sémantique → backend
 
 La ligne de commande et le REPL ne connaissent que ce module : ils n'ont pas à savoir dans
 quel ordre s'enchaînent les phases.
 """
 
 from collections.abc import Iterator
-from types import CodeType
 
-from cosmo.erreurs import ErreurCosmo, ErreursCompilation
-from cosmo.generateur import generer, nom_python, trop_imbrique
+from cosmo.backend import BACKEND_PAR_DEFAUT, BACKENDS, Backend
+from cosmo.erreurs import ErreurCosmo
+from cosmo.generateur import nom_python, traduire
 from cosmo.lexer import analyser
 from cosmo.noeuds import Expression, Programme, Transmets
 from cosmo.parser import analyser_expression, analyser_programme
@@ -18,24 +18,11 @@ from cosmo.semantique import AnalyseurSemantique, analyser_semantique
 from cosmo.tokens import Token
 
 
-def _traduire(programme: Programme) -> tuple[str, CodeType]:
-    """Génère le Python d'un programme vérifié : renvoie le texte et le code compilé.
-
-    Un programme valide en Cosmo peut encore dépasser les limites de Python : plus de 20
-    boucles imbriquées, par exemple. Ce refus devient une erreur de compilation Cosmo.
-    """
-    texte = generer(programme)
-    try:
-        return texte, compile(texte, "<cosmo>", "exec")
-    except (SyntaxError, RecursionError, MemoryError) as cause:
-        raise ErreursCompilation([trop_imbrique(programme)]) from cause
-
-
-def _compiler(source: str) -> tuple[str, CodeType]:
-    """Fait passer le source par toutes les phases."""
+def _analyser(source: str) -> Programme:
+    """Fait passer le source par les phases communes à tous les backends."""
     programme = analyser_programme(source)
     analyser_semantique(programme)
-    return _traduire(programme)
+    return programme
 
 
 def tokens(source: str) -> Iterator[Token]:
@@ -50,12 +37,20 @@ def arbre(source: str) -> Programme:
 
 def verifier(source: str) -> None:
     """Compile le source sans l'exécuter. Lève ErreursCompilation s'il est erroné."""
-    _compiler(source)
+    traduire(_analyser(source))
 
 
-def transpiler(source: str) -> str:
-    """Traduit un source Cosmo en texte Python. Lève ErreursCompilation s'il est erroné."""
-    return _compiler(source)[0]
+def transpiler(source: str, backend: Backend = BACKENDS[BACKEND_PAR_DEFAUT]) -> str:
+    """Traduit un source Cosmo avec ce backend. Lève ErreursCompilation s'il est erroné."""
+    return backend.generer(_analyser(source))
+
+
+def formater(source: str) -> str:
+    """Le source réécrit au format canonique. Lève ErreursCompilation si sa syntaxe est fausse.
+
+    Il n'y a pas d'analyse sémantique : on peut formater un programme encore inachevé.
+    """
+    return BACKENDS["cosmo"].generer(analyser_programme(source))
 
 
 def executer(source: str) -> None:
@@ -64,7 +59,7 @@ def executer(source: str) -> None:
     Lève ErreursCompilation s'il est erroné. Les erreurs d'exécution (division par zéro,
     types incompatibles) sont les exceptions de Python, qui remontent telles quelles.
     """
-    _, code = _compiler(source)
+    _, code = traduire(_analyser(source))
     exec(code, {"__name__": "__cosmo__"})  # noqa: S102 : le code vient de notre compilateur
 
 
@@ -103,7 +98,7 @@ class Session:
             programme = Programme((afficher,), position=position)
         self._analyseur.verifier_entree(programme)
         try:
-            _, code = _traduire(programme)
+            _, code = traduire(programme)
             exec(code, self._espace)  # noqa: S102 : le code vient de notre compilateur
         except BaseException:  # KeyboardInterrupt compris : Ctrl-C arrête l'exécution en cours
             self._analyseur.retenir(lambda nom: nom_python(nom) in self._espace)

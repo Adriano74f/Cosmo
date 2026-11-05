@@ -16,7 +16,7 @@ seul coup toutes les erreurs trouvées.
 """
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import IntEnum
 
 from cosmo.erreurs import ErreurCosmo, ErreursCompilation, ErreurSyntaxique
@@ -35,6 +35,7 @@ from cosmo.noeuds import (
     Entier,
     Expression,
     Instruction,
+    MiseEnPage,
     Mission,
     Module,
     OperateurBinaire,
@@ -48,7 +49,7 @@ from cosmo.noeuds import (
     Unaire,
     Variable,
 )
-from cosmo.tokens import Position, Token, TypeToken
+from cosmo.tokens import Commentaire, Position, Token, TypeToken
 
 T = TypeToken
 
@@ -219,8 +220,8 @@ class Parser:
             lue = self._avec_recuperation(self.instruction)
             if lue is not None:
                 instructions.append(lue)
-        self.attendre(T.ACC_FERMANTE)
-        return Bloc(tuple(instructions), position=ouvrante.position)
+        fermante = self.attendre(T.ACC_FERMANTE)
+        return Bloc(tuple(instructions), position=ouvrante.position, fin=fermante.position)
 
     def instruction(self) -> Instruction:
         """Analyse une instruction, avec la règle associée à son premier token."""
@@ -507,8 +508,11 @@ def analyser_programme(source: str) -> Programme:
 
     Lève ErreursCompilation avec toutes les erreurs trouvées, causée par la première.
     """
-    parser = Parser(analyser(source))
+    commentaires: list[Commentaire] = []
+    parser = Parser(analyser(source, commentaires))
     programme = parser.programme()
     if parser.erreurs:
         raise ErreursCompilation(parser.erreurs) from parser.erreurs[0]
-    return programme
+    lignes = source.split("\n")
+    vides = frozenset(n for n, ligne in enumerate(lignes, start=1) if not ligne.strip())
+    return replace(programme, mise_en_page=MiseEnPage(tuple(commentaires), vides))

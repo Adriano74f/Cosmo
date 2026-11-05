@@ -232,7 +232,10 @@ il reprend à l'instruction suivante. Seules une erreur lexicale et une imbricat
 
 ```
 python -m cosmo run fichier.cosmo                 exécute le programme
-python -m cosmo transpile fichier.cosmo [-o f.py] affiche ou écrit le Python généré
+python -m cosmo transpile fichier.cosmo [-o f.py] [--backend python|cosmo]
+                                                  affiche ou écrit le code généré
+python -m cosmo formate fichier.cosmo [-e | --verifie]
+                                                  affiche, réécrit ou contrôle le format
 python -m cosmo verifie fichier.cosmo             cherche les erreurs, sans exécuter
 python -m cosmo tokens fichier.cosmo              affiche les tokens (lexer)
 python -m cosmo arbre fichier.cosmo               affiche l'arbre (parser)
@@ -273,6 +276,33 @@ Une entrée refusée à la compilation ne laisse aucune trace. Si elle échoue �
 | `:aide` | affiche l'aide |
 | `:effacer` | oublie toutes les variables et les missions |
 | `:quitter` | quitte le REPL (comme la fin de l'entrée standard : Ctrl-D, ou Ctrl-Z sous Windows) |
+
+### 7.3 Backends et formateur (étape 10)
+
+Un **backend** transforme un arbre en texte. Il y en a deux : `python`, le générateur de la
+section 6, et `cosmo`, qui réécrit le programme au format canonique. Ajouter une sortie revient
+à écrire une classe qui a une méthode `generer(programme) -> str` et à l'enregistrer dans
+`cosmo/backend.py` : ni la façade ni la ligne de commande ne changent.
+
+`formate` s'arrête à la syntaxe : il accepte un programme dont une variable n'est pas encore
+déclarée. `transpile --backend cosmo` passe, lui, par l'analyse sémantique, comme tout backend.
+
+Le format canonique :
+
+- une instruction par ligne, 4 espaces par niveau de bloc, `{` en fin de ligne ;
+- `} sinon {` et `} sinon detecte … {` sur la même ligne ;
+- une espace autour des opérateurs binaires et après les virgules, aucune autour de `..` ;
+- seules les parenthèses nécessaires sont gardées : `non (a < b)` devient `non a < b` ;
+- au plus une ligne vide de suite, aucune au début ou à la fin d'un bloc ou du fichier ;
+- une mission est toujours entourée de lignes vides ;
+- le fichier se termine par un saut de ligne.
+
+Trois garanties : le programme formaté a **le même arbre** que l'original, reformater ne change
+**plus rien**, et **aucun commentaire n'est perdu**, ni déplacé par rapport aux autres.
+
+Un commentaire peut toutefois changer de ligne quand l'instruction autour de lui est regroupée :
+dans une instruction écrite sur plusieurs lignes, il passe en fin de sa première ligne ou juste
+après elle ; dans `x = 1; y = 2;  # note`, il se rattache à `x = 1;`.
 
 ## 8. Programmes d'exemple
 

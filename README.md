@@ -26,8 +26,8 @@ detecte x > 3 {
 ## Chaîne de compilation
 
 ```
-source .cosmo → lexer → parser → analyse sémantique → génération de Python → exécution
-                (tokens)  (arbre)   (portées, erreurs)   (code Python)
+source .cosmo → lexer → parser → analyse sémantique → backend → exécution
+                (tokens)  (arbre)   (portées, erreurs)   (Python, ou Cosmo formaté)
 ```
 
 ## Organisation du projet
@@ -49,6 +49,7 @@ Depuis le dossier du projet (détails dans [SPEC.md](SPEC.md), section 7) :
 ```bash
 python -m cosmo run exemples/02_fibonacci.cosmo        # exécuter un programme
 python -m cosmo transpile exemples/02_fibonacci.cosmo  # voir le Python généré
+python -m cosmo formate exemples/02_fibonacci.cosmo    # afficher le programme bien présenté
 python -m cosmo verifie exemples/02_fibonacci.cosmo    # chercher les erreurs, sans exécuter
 python -m cosmo tokens exemples/02_fibonacci.cosmo     # voir les tokens
 python -m cosmo arbre exemples/02_fibonacci.cosmo      # voir l'arbre
@@ -58,9 +59,9 @@ python -m cosmo                                        # session interactive (RE
 Lancer les vérifications :
 
 ```bash
-uv run pytest projet              # les tests
-uv run mypy projet/cosmo          # le typage
-uv run ruff check projet          # le style
+uv run pytest          # les tests
+uv run mypy            # le typage, en mode strict (réglages dans pyproject.toml)
+uv run ruff check      # le style
 ```
 
 ## Avancement
@@ -74,4 +75,4 @@ uv run ruff check projet          # le style
 - [x] Étape 7 : analyse sémantique
 - [x] Étape 8 : génération de Python et exécution des exemples
 - [x] Étape 9 : ligne de commande et REPL
-- [ ] Étape 10 : `mypy --strict`, backend en `Protocol`, formateur
+- [x] Étape 10 : `mypy --strict`, backend en `Protocol`, formateur

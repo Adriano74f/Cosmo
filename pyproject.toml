@@ -1,0 +1,20 @@
+[project]
+name = "cosmo"
+version = "1.0.0"
+description = "Un petit langage au thème spatial, transpilé en Python."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest", "mypy", "ruff"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+strict = true
+files = ["cosmo", "tests", "conftest.py"]
+
+[tool.ruff]
+line-length = 100
