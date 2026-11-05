@@ -43,6 +43,12 @@ class ErreurSemantique(ErreurCosmo):
     phase = "sémantique"
 
 
+class ErreurGeneration(ErreurCosmo):
+    """Le programme est valide en Cosmo, mais sa traduction dépasse les limites de Python."""
+
+    phase = "de génération"
+
+
 class ErreursCompilation(Exception):
     """Toutes les erreurs collectées par une phase de compilation.
 

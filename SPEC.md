@@ -209,18 +209,22 @@ Toute erreur indique sa **ligne** et sa **colonne** (en commençant à 1), au fo
 | lexicale | caractère inconnu (`@`), chaîne non terminée |
 | syntaxique | `;` attendu, `}` manquant, expression attendue, `a < b < c` |
 | sémantique | variable non déclarée, déclaration en double, masquage, mauvais nombre d'arguments, mission inconnue, `atterris` hors mission |
+| de génération | programme valide mais trop imbriqué pour Python |
 | exécution | division par zéro, types incompatibles (remontées par Python) |
 
 Le parser tente de **continuer après une erreur** (étape 6) pour en signaler plusieurs en une seule compilation :
 il reprend à l'instruction suivante. Seules une erreur lexicale et une imbrication trop profonde arrêtent l'analyse.
 
-## 6. Traduction vers Python (aperçu de l'étape 8)
+## 6. Traduction vers Python (étape 8)
 
 - Les identifiants Cosmo sont préfixés (par exemple `x` devient `c_x`) : un programme Cosmo peut ainsi
   nommer une variable `class` ou `print` sans entrer en conflit avec Python.
 - `/` devient `//`, `go` / `nogo` deviennent `True` / `False`, `rien` devient `None`.
 - `transmets` appelle une petite fonction d'affichage générée en tête du fichier, qui écrit
   `go`, `nogo` et `rien` au lieu de `True`, `False` et `None`.
+- Les missions sont générées avant le niveau principal : elles existent ainsi dès la première instruction.
+- Les limites de Python s'appliquent au code généré : au-delà de 20 boucles imbriquées, ou de 100 niveaux
+  d'indentation, la compilation échoue avec une `erreur de génération`.
 
 ## 7. Programmes d'exemple
 

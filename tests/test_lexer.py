@@ -126,6 +126,13 @@ def test_les_erreurs_lexicales_indiquent_leur_position(source: str, message: str
     assert str(erreur.value) == message
 
 
+def test_un_entier_trop_grand_devient_une_erreur_lexicale() -> None:
+    with pytest.raises(ErreurLexicale) as erreur:
+        list(analyser("x = " + "9" * 5000))
+    assert str(erreur.value) == "[1:5] erreur lexicale : entier trop grand"
+    assert isinstance(erreur.value.__cause__, ValueError)
+
+
 def test_le_lexer_est_paresseux() -> None:
     """Les tokens avant l'erreur sont produits : l'erreur n'arrive qu'en l'atteignant."""
     tokens = analyser("x = @")

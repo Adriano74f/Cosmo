@@ -55,7 +55,11 @@ def analyser(source: str) -> Iterator[Token]:
             while i < len(source) and source[i] in CHIFFRES:
                 i += 1
             texte = source[debut:i]
-            yield Token(TypeToken.ENTIER, texte, position, int(texte))
+            try:
+                valeur = int(texte)
+            except ValueError as cause:  # Python limite la taille d'un entier écrit en texte
+                raise ErreurLexicale("entier trop grand", position) from cause
+            yield Token(TypeToken.ENTIER, texte, position, valeur)
 
         # Identifiant ou mot-clé : une lettre, puis des lettres ou des chiffres.
         elif c in LETTRES:

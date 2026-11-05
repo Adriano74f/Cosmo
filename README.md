@@ -67,6 +67,6 @@ uv run ruff check projet          # le style
 - [x] Étape 5 : parser des expressions (Pratt)
 - [x] Étape 6 : parser des instructions et récupération d'erreurs
 - [x] Étape 7 : analyse sémantique
-- [ ] Étape 8 : génération de Python et exécution des exemples
+- [x] Étape 8 : génération de Python et exécution des exemples
 - [ ] Étape 9 : ligne de commande et REPL
 - [ ] Étape 10 : `mypy --strict`, backend en `Protocol`, formateur
