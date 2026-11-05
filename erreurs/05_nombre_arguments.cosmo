@@ -1,0 +1,4 @@
+mission double(n) {
+    atterris n * 2;
+}
+transmets double(1, 2);

@@ -1,0 +1,16 @@
+# Contrôle de mission : chaînes, logique et missions sans valeur
+mission statut(carburant, moteurs_ok) {
+    detecte carburant > 50 et moteurs_ok {
+        atterris "GO";
+    }
+    atterris "attente";
+}
+
+mission salue(nom) {
+    transmets "Capitaine " + nom + " à bord";
+}
+
+salue("Ada");
+transmets statut(80, go), statut(80, nogo), statut(20, go);
+transmets non go ou go;
+transmets salue("Grace");

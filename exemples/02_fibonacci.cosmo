@@ -1,0 +1,11 @@
+# Suite de Fibonacci, version récursive
+mission fibo(n) {
+    detecte n < 2 {
+        atterris n;
+    }
+    atterris fibo(n - 1) + fibo(n - 2);
+}
+
+survole k dans 0..8 {
+    transmets k, fibo(k);
+}
